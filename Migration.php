@@ -148,6 +148,28 @@ class Migration
         $this->close();
     }
 
+    public function exportBonus()
+    {
+        $this->connect($this->dbName);
+        $postmeta = $this->tablePrefix . "postmeta";
+        $post = $this->tablePrefix . "posts";
+        $sql = "SELECT p.post_name, m.meta_value FROM {$postmeta} m LEFT JOIN {$post} p ON m.post_id = p.id WHERE m.meta_key LIKE 'r_small_bonus' AND m.meta_value NOT LIKE '' AND p.post_status = 'publish'";
+        if ($result = mysqli_query($this->connection, $sql)) {
+            if (mysqli_num_rows($result) > 0) {
+                echo "Migrating bonuses ...\n";
+                $header = ['Short code', 'One liner'];
+                $this->writeBonusCSV($result, $this->fileBonusCSV, $header);
+                // Free result set
+                mysqli_free_result($result);
+            } else {
+                echo "No records matching your query were found.\n";
+            }
+        } else {
+            echo "ERROR: Could not able to execute $sql. " . mysqli_error($this->connection) . "\n";
+        }
+        $this->close();
+    }
+
     private function writeCSV($result, $fileName, $header = null)
     {
         $fp = fopen($fileName, 'w');
@@ -186,6 +208,35 @@ class Migration
         }
 
         fclose($fp);
+    }
+
+    private function writeBonusCSV($result, $fileName, $header = null)
+    {
+        $fp = fopen($fileName, 'w');
+        // If there is an header
+        if ( ! empty($header)) {
+            fputcsv($fp, $header);
+        }
+        while ($row = mysqli_fetch_array($result, MYSQLI_ASSOC)) {
+            fputcsv($fp, $this->buildBonusRow($row));
+        }
+
+        fclose($fp);
+    }
+
+    private function buildBonusRow($row)
+    {
+        $line = [];
+        foreach ($row as $key => $value) {
+            // remove html tags but not br and remove double quote
+            $value = str_replace('"', '', strip_tags($value, '<br>'));
+            // replace br with space
+            $value = str_replace(['<br>', '<br/>', '</br>'], [' ', ' ', ' '], $value);
+            // remove double space
+            $line[$key] = preg_replace('/\s+/', ' ', $value);
+        }
+
+        return $line;
     }
 
     /**
